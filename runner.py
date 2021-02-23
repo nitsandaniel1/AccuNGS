@@ -323,7 +323,7 @@ def runner(input_dir, reference_file, output_dir, max_basecall_iterations, min_c
         prepare_data(input_dir=input_dir, output_dir=filenames['data_dir'], overlapping_reads=overlapping_reads,
                      cpu_count=cpu_count, max_memory=max_memory)
         data_files = get_files_in_dir(filenames['data_dir'])
-        fastq_files = [file_path for file_path in data_files if "fastq.part_" in os.path.basename(file_path)]
+        fastq_files = [file_path for file_path in data_files if ".part*.fasta" in os.path.basename(file_path)]
         log.info(f"Processing {len(fastq_files)} fastq files.")
         update_meta_data(output_dir=output_dir, status='Processing data...', db_path=db_path)
         reference_file = process_data(with_indels=with_indels, dust=dust,
