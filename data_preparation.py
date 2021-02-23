@@ -78,7 +78,7 @@ def get_fastq_records_num(fastq_file):
 
 def split_fastq_file(fastq_file, output_dir, cpu_count, max_memory):
     fastq_records_num = get_fastq_records_num(fastq_file)
-    part_size = fastq_records_num / cpu_count
+    part_size = 50
     if not max_memory:
         max_memory = 0.9 * psutil.virtual_memory().available / 1000000  # 90% of currently available RAM.
     approx_memory_usage = part_size * cpu_count / 4  # rough estimate derived from testing
@@ -134,14 +134,14 @@ def prepare_data_in_dir(input_dir, output_dir, rep_length, overlapping_reads, lo
                                                 rep_length=rep_length, file_type=file_type, log=log)
             if file_type == 'gz':
                 merged_reads = extract_gz(merged_reads, output_dir=output_dir)
-            #split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
         else:
             raise Exception(f"When using merge_opposing !")
     else:
         for file in files:
             if file_type == 'gz':
                 file = extract_gz(file, output_dir=output_dir)
-            #split_fastq_file(fastq_file=file, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            split_fastq_file(fastq_file=file, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
 
 
 def prepare_data(input_dir, output_dir, cpu_count, max_memory, overlapping_reads, rep_length=60):
