@@ -78,7 +78,7 @@ def get_fastq_records_num(fastq_file):
 
 def split_fastq_file(fastq_file, output_dir, cpu_count, max_memory):
     fastq_records_num = get_fastq_records_num(fastq_file)
-    part_size = 50
+    part_size = fastq_records_num / cpu_count
     if not max_memory:
         max_memory = 0.9 * psutil.virtual_memory().available / 1000000  # 90% of currently available RAM.
     approx_memory_usage = part_size * cpu_count / 4  # rough estimate derived from testing
@@ -87,6 +87,7 @@ def split_fastq_file(fastq_file, output_dir, cpu_count, max_memory):
         approx_memory_usage = part_size * cpu_count / 4
     record_iter = SeqIO.parse(open(fastq_file), "fastq")
     fastq_file_name = os.path.basename(fastq_file)
+    part_size=50
     for i, batch in enumerate(batch_iterator(record_iter, part_size)):
         filename = os.path.join(output_dir, f"{fastq_file_name}.part_{i+1}")
         with open(filename, "w") as handler:
