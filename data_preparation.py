@@ -120,7 +120,6 @@ def merge_opposing_reads(file1, file2, output_file, rep_length, file_type, log):
 
 def prepare_data_in_dir(input_dir, output_dir, rep_length, overlapping_reads, log, cpu_count, max_memory):
     input_dir_name = os.path.basename(input_dir)
-    print("in prepare_data_in_dir")
     if input_dir_name == "":
         input_dir_name = os.path.basename(input_dir[:-1])  # that last '/' confuses basename..
     files, file_type = find_read_files(input_dir, log)
