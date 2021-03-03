@@ -14,27 +14,29 @@ import gzip
 import argparse
 from functools import partial
 import multiprocessing as mp
+from shutil import copymode, move
+from tempfile import mkstemp
 
 import psutil
 from Bio import SeqIO, Seq
 from Bio.SeqRecord import SeqRecord
 
 from logger import pipeline_logger
-from utils import get_files_by_extension, extract_gz
+from utils import get_files_by_extension, extract_gz, get_files_in_dir
 
 
-def merger_generator(forward_handle,reverse_handle, rep_length, log):
+def merger_generator(forward_handle, reverse_handle, rep_length, log):
     for a, b in zip(SeqIO.parse(forward_handle, "fastq"), SeqIO.parse(reverse_handle, "fastq")):
         if a.id.split(" ")[0] != b.id.split(" ")[0]:
             # TODO: what does this mean and shouldnt it be an exception?
             log.warning("Problem, discrepancy in pair id's: {}, {}".format(a.id.split(" ")[0], b.id.split(" ")[0]))
         new_seq_id = a.id.split(" ")[0]
-        new_seq_str = str(a.seq) + ("N"*rep_length) + str(b.seq)
+        new_seq_str = str(a.seq) + ("N" * rep_length) + str(b.seq)
         a_quals = a.letter_annotations["phred_quality"]
         b_quals = b.letter_annotations["phred_quality"]
-        new_seq_qual = a_quals+[1.0 for a in range(rep_length)]+b_quals
+        new_seq_qual = a_quals + [1.0 for a in range(rep_length)] + b_quals
         new_seq = SeqRecord(Seq.Seq(new_seq_str), id=new_seq_id, description="",
-                          letter_annotations={"phred_quality": new_seq_qual})
+                            letter_annotations={"phred_quality": new_seq_qual})
         yield new_seq
 
 
@@ -76,6 +78,7 @@ def get_fastq_records_num(fastq_file):
     return i / 4
 
 
+# fastq_file = the merged big file
 def split_fastq_file(fastq_file, output_dir, cpu_count, max_memory):
     fastq_records_num = get_fastq_records_num(fastq_file)
     part_size = fastq_records_num / cpu_count
@@ -88,7 +91,7 @@ def split_fastq_file(fastq_file, output_dir, cpu_count, max_memory):
     record_iter = SeqIO.parse(open(fastq_file), "fastq")
     fastq_file_name = os.path.basename(fastq_file)
     for i, batch in enumerate(batch_iterator(record_iter, part_size)):
-        filename = os.path.join(output_dir, f"{fastq_file_name}.part_{i+1}")
+        filename = os.path.join(output_dir, f"{fastq_file_name}.part_{i + 1}")
         with open(filename, "w") as handler:
             SeqIO.write(batch, handler, "fastq")
 
@@ -118,6 +121,42 @@ def merge_opposing_reads(file1, file2, output_file, rep_length, file_type, log):
     return output_file
 
 
+# Here! see what to add more
+# output_fastqs_list = list of
+def get_records_from_fastas_into_fastqs(input_fastas_perl, input_fastq_python, output_fastqs_list, output_dir):
+    fastq_file_num = 0
+    input_fastas_perl_files = get_files_in_dir(input_fastas_perl)
+    # first parse the files...
+    for fasta_file in input_fastas_perl_files:  # all the perls
+        if not fasta_file.endswith(f".log"):
+            path = fasta_file
+            # Create temp file
+            fh, abs_path = mkstemp()
+            with os.fdopen(fh, 'w') as new_file:
+                with open(path) as old_file:
+                    for line in old_file:
+                        new_file.write(line.replace('>', '@'))
+            # Copy the file permissions from the old file to the new file
+            copymode(path, abs_path)
+            # Remove original file
+            os.remove(path)
+            # Move new file
+            move(abs_path, path)
+        fasta_record_iter = SeqIO.parse(open(fasta_file), "fasta")  # read from fasta
+        record_names_list = []
+        for record in fasta_record_iter:
+            record_names_list.append(record.id)
+        record_data_list = []
+        fastq_record_iter = SeqIO.parse(open(input_fastq_python), "fastq")  # get data from fastq
+        for record in fastq_record_iter:  # for specific fastq
+            if record.id in record_names_list:
+                record_data_list.append(record)
+        with open(output_fastqs_list[fastq_file_num], "a") as handler:  # write to smaller fastq - ALL of the records
+            for record in record_data_list:
+                SeqIO.write(record, handler, "fastq")
+        fastq_file_num += 1
+
+
 def prepare_data_in_dir(input_dir, output_dir, rep_length, overlapping_reads, log, cpu_count, max_memory):
     input_dir_name = os.path.basename(input_dir)
     if input_dir_name == "":
@@ -134,14 +173,18 @@ def prepare_data_in_dir(input_dir, output_dir, rep_length, overlapping_reads, lo
                                                 rep_length=rep_length, file_type=file_type, log=log)
             if file_type == 'gz':
                 merged_reads = extract_gz(merged_reads, output_dir=output_dir)
-            split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            #split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            get_records_from_fastas_into_fastqs(input_fastas_perl="perl_fastas", input_fastq_python=merged_reads,
+                                                output_fastqs_list="output_dir", output_dir=output_dir)
         else:
             raise Exception(f"When using merge_opposing !")
     else:
         for file in files:
             if file_type == 'gz':
                 file = extract_gz(file, output_dir=output_dir)
-            split_fastq_file(fastq_file=file, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            # split_fastq_file(fastq_file=file, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            get_records_from_fastas_into_fastqs(input_fastas_perl="perl_fastas", input_fastq_python=input_dir,
+                                                output_fastqs_list="output_dir")
 
 
 def prepare_data(input_dir, output_dir, cpu_count, max_memory, overlapping_reads, rep_length=60):

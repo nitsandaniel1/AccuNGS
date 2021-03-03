@@ -305,7 +305,7 @@ def runner(input_dir, reference_file, output_dir, max_basecall_iterations, min_c
         db_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'db')
     if not output_dir:
         output_dir = assign_output_dir(db_path)
-    validate_input(output_dir, input_dir, reference_file)
+    #validate_input(output_dir, input_dir, reference_file)
     log = pipeline_logger(logger_name='AccuNGS-Runner', log_folder=output_dir)
     if overlapping_reads == 'Y':
         min_coverage /= 2
