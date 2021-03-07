@@ -128,30 +128,18 @@ def get_records_from_fastas_into_fastqs(input_fastas_perl, input_fastq_python, o
     input_fastas_perl_files = get_files_in_dir(input_fastas_perl)
     # first parse the files...
     for fasta_file in input_fastas_perl_files:  # all the perls
-        if not fasta_file.endswith(f".log"):
-            path = fasta_file
-            # Create temp file
-            fh, abs_path = mkstemp()
-            with os.fdopen(fh, 'w') as new_file:
-                with open(path) as old_file:
-                    for line in old_file:
-                        new_file.write(line.replace('>', '@'))
-            # Copy the file permissions from the old file to the new file
-            copymode(path, abs_path)
-            # Remove original file
-            os.remove(path)
-            # Move new file
-            move(abs_path, path)
-        fasta_record_iter = SeqIO.parse(open(fasta_file), "fasta")  # read from fasta
+        fasta_record_iter = SeqIO.parse(open(fasta_file), "fasta")  # read from fasta - of the given perls - runs good!
         record_names_list = []
         for record in fasta_record_iter:
             record_names_list.append(record.id)
         record_data_list = []
         fastq_record_iter = SeqIO.parse(open(input_fastq_python), "fastq")  # get data from fastq
         for record in fastq_record_iter:  # for specific fastq
-            if record.id in record_names_list:
+            if record.id in record_names_list:  # adding the record id
                 record_data_list.append(record)
-        with open(output_fastqs_list[fastq_file_num], "a") as handler:  # write to smaller fastq - ALL of the records
+        head_tail = os.path.split(input_fastq_python)
+        new_file_path = os.path.join(output_dir, head_tail[1] + '.part_' + fastq_file_num.__str__())
+        with open(new_file_path, "w") as handler:  # write to smaller fastq - ALL of the records
             for record in record_data_list:
                 SeqIO.write(record, handler, "fastq")
         fastq_file_num += 1
@@ -173,9 +161,10 @@ def prepare_data_in_dir(input_dir, output_dir, rep_length, overlapping_reads, lo
                                                 rep_length=rep_length, file_type=file_type, log=log)
             if file_type == 'gz':
                 merged_reads = extract_gz(merged_reads, output_dir=output_dir)
-            #split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
+            output_list = []
+            # split_fastq_file(fastq_file=merged_reads, output_dir=output_dir, cpu_count=cpu_count, max_memory=max_memory)
             get_records_from_fastas_into_fastqs(input_fastas_perl="perl_fastas", input_fastq_python=merged_reads,
-                                                output_fastqs_list="output_dir", output_dir=output_dir)
+                                                output_fastqs_list=output_list, output_dir=output_dir)
         else:
             raise Exception(f"When using merge_opposing !")
     else:
